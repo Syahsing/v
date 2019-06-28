@@ -4,15 +4,15 @@
 
 module rand
 
-#include <time.h>
-// #include <stdlib.h>
-fn seed() {
-	# time_t t;
-	# srand((unsigned) time(&t));
+import time
+
+pub fn seed() {
+	C.srand(time.now().uni)
 }
 
-fn next(max int) int {
-	# return  rand() % max;
-	return 0
+pub fn next(max int) int {
+	return C.rand() % max
 }
+
+fn C.rand() int 
 

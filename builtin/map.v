@@ -25,7 +25,7 @@ pub:
 	// next *Entry
 }
 
-fn new_map(cap int, elm_size int) map {
+pub fn new_map(cap, elm_size int) map {
 	res := map {
 		// len: len,
 		element_size: elm_size
@@ -108,6 +108,15 @@ pub fn (m mut map) sort() {
 	m.is_sorted = true
 }
 
+pub fn (m map) keys() []string {
+	mut keys := []string{}
+	for i := 0; i < m.entries.len; i++ {
+		entry := m.entries[i]
+		keys << entry.key
+	}
+	return keys
+}
+
 fn (m map) get(key string, out voidptr) bool {
 	if m.is_sorted {
 		// println('\n\nget "$key" sorted')
@@ -124,13 +133,23 @@ fn (m map) get(key string, out voidptr) bool {
 	return false
 }
 
-fn (m map) print() {
+pub fn (m map) exists(key string) bool {
+	for i := 0; i < m.entries.len; i++ {
+		entry := m.entries[i]
+		if entry.key == key {
+			return true
+		}
+	}
+	return false
+}
+
+pub fn (m map) print() {
 	println('<<<<<<<<')
 	for i := 0; i < m.entries.len; i++ {
 		// entry := m.entries[i]
 		// println('$entry.key => $entry.val')
 	}
-	/* 
+	/*
 	for i := 0; i < m.cap * m.element_size; i++ {
 		b := m.table[i]
 		print('$i: ')
@@ -141,12 +160,12 @@ fn (m map) print() {
 	println('>>>>>>>>>>')
 }
 
-fn (m map) free() {
+pub fn (m map) free() {
 	// C.free(m.table)
 	// C.free(m.keys_table)
 }
 
-fn (m map_string) str() string {
+pub fn (m map_string) str() string {
 	// return 'not impl'
 	if m.entries.len == 0 {
 		return '{}'
@@ -160,4 +179,3 @@ fn (m map_string) str() string {
 	s += '}'
 	return s
 }
-

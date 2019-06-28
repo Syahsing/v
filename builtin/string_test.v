@@ -5,7 +5,7 @@
 fn test_add() {
 	mut a := 'a'
 	a += 'b'
-	assert a.eq('ab')
+	assert a==('ab')
 	a = 'a'
 	for i := 1; i < 1000; i++ {
 		a += 'b'
@@ -29,19 +29,62 @@ fn test_between() {
 fn test_compare() {
 	a := 'Music'
 	b := 'src'
-	assert b.ge(a)
+	assert b>=(a)
+}
+
+fn test_lt() {
+	a := ''
+	b := 'a'
+	c := 'a'
+	d := 'b'
+	e := 'aa'
+	f := 'ab'
+	assert a<(b)
+	assert !(b<c)
+	assert c<(d)
+	assert !(d<e)
+	assert c<(e)
+	assert e<(f)
+}
+
+fn test_ge() {
+	a := 'aa'
+	b := 'aa'
+	c := 'ab'
+	d := 'abc'
+	e := 'aaa'
+	assert b>=(a)
+	assert c>=(b)
+	assert d>=(c)
+	assert !(c>=d) 
+	assert e>=(a)
+}
+
+fn test_compare_strings() {
+	a := 'aa'
+	b := 'aa'
+	c := 'ab'
+	d := 'abc'
+	e := 'aaa'
+	assert compare_strings(a, b) == 0
+	assert compare_strings(b, c) == -1
+	assert compare_strings(c, d) == -1
+	assert compare_strings(d, e) == 1
+	assert compare_strings(a, e) == -1
+	assert compare_strings(e, a) == 1
 }
 
 fn test_sort() {
 	mut vals := [
-	'src', 'Music', 'go'
+		'arr', 'an', 'a', 'any'
 	]
 	len := vals.len
 	vals.sort()
 	assert len == vals.len
-	assert vals[0] == 'Music'
-	assert vals[1] == 'go'
-	assert vals[2] == 'src'
+	assert vals[0] == 'a'
+	assert vals[1] == 'an'
+	assert vals[2] == 'any'
+	assert vals[3] == 'arr'
 }
 
 fn test_split() {
@@ -107,13 +150,13 @@ fn test_clone() {
 fn test_replace() {
 	a := 'hello man!'
 	mut b := a.replace('man', 'world')
-	assert b.eq('hello world!')
+	assert b==('hello world!')
 	b = b.replace('!', '')
-	assert b.eq('hello world')
+	assert b==('hello world')
 	b = b.replace('h', 'H')
-	assert b.eq('Hello world')
+	assert b==('Hello world')
 	b = b.replace('kek', 'lul')
-	assert b.eq('Hello world')
+	assert b==('Hello world')
 	s := 'hey man how are you'
 	assert s.replace('man ', '') == 'hey how are you'
 	lol := 'lol lol lol'
@@ -208,16 +251,16 @@ fn test_arr_contains() {
 
 fn test_to_num() {
 	s := '7'
-	assert s.to_i() == 7
+	assert s.int() == 7
 	f := '71.5 hasdf'
-	assert f.to_float() == 71.5
+	assert f.f32() == 71.5
 	b := 1.52345
 	mut a := '${b:.03f}'
 	assert a == '1.523'
 	num := 7
 	a = '${num:03d}'
 	vals := ['9']
-	assert vals[0].to_i() == 9
+	assert vals[0].int() == 9
 }
 
 fn test_hash() {

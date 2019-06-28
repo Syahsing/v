@@ -5,12 +5,14 @@
 module http
 
 #include <curl/curl.h>
-#flag windows -I/usr/local/opt/curl/include
 #flag darwin -lcurl
 #flag windows -lcurl
 #flag linux -lcurl
-@size_t kek
-@CURL* curl_easy_init
+
+fn C.curl_easy_init() *C.CURL 
+
+fn foo() {} 
+
 type wsfn fn (s string, ptr voidptr)
 
 struct MemoryStruct {
@@ -35,11 +37,10 @@ import const (
 	CURLOPT_POSTFIELDS
 	CURLOPT_CUSTOMREQUEST
 	CURLOPT_TCP_KEEPALIVE
+	CURLINFO_CONTENT_LENGTH_DOWNLOAD 
 	CURLE_OK
 )
 
-// type C.CURLcode {
-// }
 fn C.curl_easy_strerror(curl voidptr) byteptr
 
 fn C.curl_easy_perform(curl voidptr) C.CURLcode
@@ -63,11 +64,11 @@ fn write_fn(contents byteptr, size, nmemb int, _mem *MemoryStruct) int {
 		}
 		contents += start + 1
 		// printf("GOOD CONTEnTS=%s\n", contents);
-		s := tos_no_len(contents)
+		s := string(contents)
 		// mem.ws_func('kek', 0)
 		# mem->ws_func(s, mem->user_ptr);
 	}
-	mut c := tos_no_len(contents)
+	mut c := string(contents)
 	c = c.trim_space()
 	// Need to clone because libcurl reuses this memory
 	mem.strings << c.clone()
@@ -145,7 +146,7 @@ fn (req &Request) do() Response {
 		err := C.curl_easy_strerror(res)
 		println('curl_easy_perform() failed: $err')
 	}
-	body := chunk.strings.join('')// tos_no_len(chunk.memory)
+	body := chunk.strings.join('')// string(chunk.memory)
 	// chunk.strings.free()
 	// resp.headers = hchunk.strings
 	if hchunk.strings.len == 0 {
@@ -155,7 +156,7 @@ fn (req &Request) do() Response {
 	mut status_code := 0
 	if first_header.contains('HTTP/') {
 		val := first_header.find_between(' ', ' ')
-		status_code = val.to_i()
+		status_code = val.int()
 	}
 	// Build resp headers map
 	// println('building resp headers hchunk.strings.len')
@@ -191,11 +192,11 @@ fn (req &Request) do() Response {
 }
 
 fn unescape(s string) string {
-	return tos2(C.curl_unescape(s.cstr(), s.len))
+	return string(byteptr(C.curl_unescape(s.cstr(), s.len)))
 }
 
 fn escape(s string) string {
-	return tos2(C.curl_escape(s.cstr(), s.len))
+	return string(byteptr(C.curl_escape(s.cstr(), s.len)))
 }
 
 // ////////////////

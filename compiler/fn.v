@@ -23,7 +23,7 @@ mut:
 	name          string
 	is_c          bool
 	receiver_typ  string
-	is_private    bool
+	is_public    bool
 	is_method     bool
 	returns_error bool
 	is_decl       bool // type myfn fn(int, int)
@@ -94,11 +94,12 @@ fn (p mut Parser) is_sig() bool {
 	(p.file_path.contains(TmpPath))
 }
 
-fn new_fn(pkg string) *Fn {
+fn new_fn(pkg string, is_public bool) *Fn {
 	mut f := &Fn {
 		pkg: pkg
 		local_vars: [Var{}
 		; MaxLocalVars]
+		is_public: is_public
 	}
 	return f
 }
@@ -112,7 +113,7 @@ fn (p mut Parser) fn_decl() {
 	}
 	p.returns = false
 	p.next()
-	mut f := new_fn(p.pkg)
+	mut f := new_fn(p.pkg, is_pub)
 	// Method receiver
 	mut receiver_typ := ''
 	if p.tok == LPAR {
@@ -159,7 +160,6 @@ fn (p mut Parser) fn_decl() {
 	}
 	if p.tok == PLUS || p.tok == MINUS || p.tok == MUL {
 		f.name = p.tok.str()
-		println('!!! $f.name')
 		p.next()
 	}
 	else {
@@ -345,10 +345,10 @@ fn (p mut Parser) fn_decl() {
 		p.genln('init_consts();')
 		if p.table.imports.contains('os') {
 			if f.name == 'main' {
-				p.genln('os__init_os_args(argc, argv);')
+				p.genln('os__args = os__init_os_args(argc, argv);')
 			}
 			else if f.name == 'WinMain' {
-				p.genln('os__parse_windows_cmd_line(pCmdLine);')
+				p.genln('os__args = os__parse_windows_cmd_line(pCmdLine);')
 			}
 		}
 		// We are in live code reload mode, call the .so loader in bg
@@ -493,6 +493,9 @@ fn (p mut Parser) async_fn_call(f Fn, method_ph int, receiver_var, receiver_type
 }
 
 fn (p mut Parser) fn_call(f Fn, method_ph int, receiver_var, receiver_type string) {
+	if !f.is_public && !f.is_c && !p.is_test && f.pkg != p.pkg  { 
+		p.error('function `$f.name` is private')
+	}
 	p.calling_c = f.is_c
 	is_print := p.is_prod &&// Hide prints only in prod
 	!p.is_test &&
@@ -514,14 +517,6 @@ fn (p mut Parser) fn_call(f Fn, method_ph int, receiver_var, receiver_type strin
 	// If we have a method placeholder,
 	// we need to preappend "method(receiver, ...)"
 	else {
-		// C only knows about functions "array_get", "array_set" etc
-		// TODO I don't need this?
-		// mut cgen_typ := receiver_type.replace('*', '')
-		// if cgen_typ.starts_with('array_') {
-		// cgen_typ = 'array'
-		// }
-		// println('METHOD fn_call name=$cgen_name')
-		// mut method_call := '${cgen_typ}_${cgen_name}('
 		mut method_call := '${cgen_name}('
 		receiver := f.args.first()
 		if receiver.is_mut && !p.expr_var.is_mut {
@@ -547,10 +542,8 @@ fn (p mut Parser) fn_call(f Fn, method_ph int, receiver_var, receiver_type strin
 		p.cgen.set_placeholder(method_ph, '$cast $method_call')
 	}
 	p.next()
-	// p.check(LPAR)
 	p.fn_call_args(f)
 	p.gen(')')
-	// p.check(RPAR)
 	p.calling_c = false
 	if is_print {
 		p.cgen.nogen = false
@@ -686,8 +679,7 @@ fn (p mut Parser) fn_call_args(f *Fn) *Fn {
 		}
 		typ := p.bool_expression()
 		// TODO temporary hack to allow println(777)
-		if i == 0 && f.name == 'println' && typ != 'string'
-		&& typ != 'void' {
+		if i == 0 && f.name == 'println' && typ != 'string' && typ != 'void' {
 			// If we dont check for void, then V will compile "println(procedure())"
 			T := p.table.find_type(typ)
 			if typ == 'u8' {
@@ -702,6 +694,19 @@ fn (p mut Parser) fn_call_args(f *Fn) *Fn {
 			else {
 				// Make sure this type has a `str()` method
 				if !T.has_method('str') {
+					if T.fields.len > 0 {
+						mut index := p.cgen.cur_line.len - 1
+						for index > 0 && p.cgen.cur_line[index] != ` ` { index-- }
+						name := p.cgen.cur_line.right(index + 1)
+						if name == '}' {
+							p.error('`$typ` needs to have method `str() string` to be printable')
+						}
+						p.cgen.cur_line = p.cgen.cur_line.left(index)
+						p.create_type_string(T, name)
+						p.cgen.cur_line.replace(typ, '')
+						p.next()
+						return p.fn_call_args(f)
+					}
 					p.error('`$typ` needs to have method `str() string` to be printable')
 				}
 				p.cgen.set_placeholder(amp_ph, '${typ}_str(')

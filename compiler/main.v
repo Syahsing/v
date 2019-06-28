@@ -8,7 +8,7 @@ import os
 import time
 
 const (
-	Version = '0.0.12'
+	Version = '0.1.7'
 )
 
 // TODO no caps
@@ -25,7 +25,7 @@ enum BuildMode {
 }
 
 fn vtmp_path() string {
-	return os.home_dir() + '/.vlang$Version/'
+	return os.home_dir() + '/.vlang/'
 }
 
 const (
@@ -73,7 +73,7 @@ mut:
 	is_so      bool
 	is_live    bool // for hot code reloading
 	is_prof    bool // benchmark every function
-	translated bool // `v translated doom.v` are we running V code translated from C? allow globals, ++ expressions, etc
+	translated bool // `v translate doom.v` are we running V code translated from C? allow globals, ++ expressions, etc
 	obfuscate  bool // `v -obf program.v`, renames functions to "f_XXX"
 	lang_dir   string // "~/code/v"
 	is_verbose bool // print extra information with `v.log()`
@@ -84,13 +84,14 @@ mut:
 	out_name   string // "program.exe"
 	is_prod    bool // use "-O2" and skip printlns (TODO I don't thik many people want printlns to disappear in prod buidls)
 	is_repl    bool
+	vroot      string
 }
 
 fn main() {
 	// There's no `flags` module yet, so args have to be parsed manually
 	args := os.args
 	// Print the version and exit.
-	if 'version' in args {
+	if '-v' in args || 'version' in args {
 		println('V $Version')
 		return
 	}
@@ -98,6 +99,10 @@ fn main() {
 		println(HelpText)
 		return
 	}
+	if 'translate' in args {
+		println('Translating C to V will be available in V 0.3') 
+		return 
+	} 
 	// TODO quit if the compiler is too old 
 	// u := os.file_last_mod_unix('/var/tmp/alex')
 	// Create a temp directory if it's not there. 
@@ -126,7 +131,7 @@ fn main() {
 		return
 	}
 	// V with no args? REPL
-	if args.len < 2 {
+	if args.len < 2 || (args.len == 2 && args[1] == '-') {
 		run_repl()
 		return
 	}
@@ -159,19 +164,6 @@ fn (c mut V) compile() {
 	}
 	// Main pass
 	cgen.run = RUN_MAIN
-	if c.os == MAC {
-		cgen.genln('#define mac (1) ')
-		// cgen.genln('#include <pthread.h>')
-	}
-	if c.os == LINUX {
-		cgen.genln('#define linux (1) ')
-		cgen.genln('#include <pthread.h>')
-	}
-	if c.os == WINDOWS {
-		cgen.genln('#define windows (1) ')
-		// cgen.genln('#include <WinSock2.h>')
-		cgen.genln('#include <windows.h> ')
-	}
 	if c.is_play {
 		cgen.genln('#define VPLAY (1) ')
 	}
@@ -181,6 +173,22 @@ fn (c mut V) compile() {
 #include <signal.h>
 #include <stdarg.h> // for va_list 
 #include <inttypes.h>  // int64_t etc 
+
+
+#ifdef __linux__ 
+#include <pthread.h> 
+#endif 
+
+
+#ifdef __APPLE__ 
+
+#endif 
+
+
+#ifdef _WIN32 
+#include <windows.h>
+//#include <WinSock2.h> 
+#endif 
 
 //================================== TYPEDEFS ================================*/ 
 
@@ -249,7 +257,8 @@ void init_consts();')
 	if c.build_mode == EMBED_VLIB || c.build_mode == DEFAULT_MODE {
 		// If we declare these for all modes, then when running `v a.v` we'll get
 		// `/usr/bin/ld: multiple definition of 'total_m'`
-		cgen.genln('i64 total_m = 0; // For counting total RAM allocated')
+		// TODO
+		//cgen.genln('i64 total_m = 0; // For counting total RAM allocated')
 		cgen.genln('int g_test_ok = 1; ')
 		if c.table.imports.contains('json') {
 			cgen.genln(' 
@@ -372,15 +381,18 @@ string _STR_TMP(const char *fmt, ...) {
 		if true || c.is_verbose {
 			println('============running $c.out_name==============================')
 		}
-		cmd := if c.out_name.starts_with('/') {
+		mut cmd := if c.out_name.starts_with('/') {
 			c.out_name
 		}
 		else {
 			'./' + c.out_name
 		}
-		ret := os.system2(cmd)
+		if os.args.len > 3 {
+			cmd += ' ' + os.args.right(3).join(' ')
+		}
+		ret := os.system(cmd)
 		if ret != 0 {
-			s := os.system(cmd)
+			s := os.exec(cmd)
 			println(s)
 			println('ret not 0, exiting')
 			exit(1)
@@ -485,7 +497,7 @@ mut args := ''
 		println('\n==========\n$cmd\n=========\n')
 	}
 	// Run
-	res := os.system(cmd)
+	res := os.exec(cmd)
 	// println('C OUTPUT:')
 	if res.contains('error: ') {
 		println(res)
@@ -496,7 +508,7 @@ mut args := ''
 		c.out_name = c.out_name.replace('.o', '')
 		obj_file := c.out_name + '.o'
 		println('linux obj_file=$obj_file out_name=$c.out_name')
-		ress := os.system('/usr/local/Cellar/llvm/8.0.0/bin/ld.lld --sysroot=$sysroot ' +
+		ress := os.exec('/usr/local/Cellar/llvm/8.0.0/bin/ld.lld --sysroot=$sysroot ' +
 		'-v -o $c.out_name ' +
 		'-m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 ' +
 		'/usr/lib/x86_64-linux-gnu/crt1.o ' +
@@ -507,7 +519,7 @@ mut args := ''
 		'/usr/lib/x86_64-linux-gnu/crtn.o')
 		println(ress)
 		if ress.contains('error:') {
-			os.exit(1)
+			exit(1)
 		}
 		println('linux cross compilation done. resulting binary: "$c.out_name"')
 	}
@@ -518,6 +530,8 @@ fn (c &V) v_files_from_dir(dir string) []string {
 	mut res := []string
 	if !os.file_exists(dir) {
 		panic('$dir doesn\'t exist')
+	} else if !os.dir_exists(dir) {
+		panic('$dir isn\'t a directory')
 	}
 	mut files := os.ls(dir)
 	if c.is_verbose {
@@ -677,6 +691,9 @@ fn (c &V) log(s string) {
 
 fn new_v(args[]string) *V {
 	mut dir := args.last()
+	if args.contains('run') {
+		dir = args[2]
+	}
 	// println('new compiler "$dir"')
 	if args.len < 2 {
 		dir = ''
@@ -746,12 +763,49 @@ fn new_v(args[]string) *V {
 	'int.v',
 	'utf8.v',
 	'map.v',
-	'smap.v',
 	'option.v',
 	'string_builder.v',
 	]
-	// Location of all vlib files  TODO allow custom location
-	mut lang_dir = os.home_dir() + '/code/v/'
+	// Location of all vlib files
+	mut lang_dir = ''
+	// First try fetching it from VROOT if it's defined
+	for { // TODO tmp hack for optionals
+	vroot_path := TmpPath + '/VROOT'
+	if os.file_exists(vroot_path) {
+		mut vroot := os.read_file(vroot_path) or {
+			break
+		}
+		vroot=vroot.trim_space() 
+		if os.dir_exists(vroot) && os.dir_exists(vroot + '/builtin') {
+			lang_dir = vroot
+		}
+	}
+	break
+	}
+	// no "~/.vlang/VROOT" file, so the user must be running V for the first 
+	// time.
+	if lang_dir == ''  {
+		println('Looks like you are running V for the first time.')
+		// The parent directory should contain vlib if V is run
+		// from "v/compiler"
+		cur_dir := os.getwd()
+		lang_dir = cur_dir.all_before_last('/')
+		if os.dir_exists('$lang_dir/builtin') {
+			println('Setting VROOT to "$lang_dir".')
+			os.write_file(TmpPath + '/VROOT', lang_dir)
+		} else {
+			println('V repo not found. Cloning...') 
+			os.mv('v', 'v.bin') 
+			os.exec('git clone https://github.com/vlang/v') 
+			if !os.dir_exists('v') {
+				println('failed to clone github.com/vlang/v') 
+				exit(1) 
+			} 
+			os.mv('v.bin', 'v/compiler/v') 
+			println('Re-launch V from v/compiler') 
+			exit(1) 
+		}
+	} 
 	out_name_c := out_name.all_after('/') + '.c'
 	mut files := []string
 	// Add builtin files
@@ -792,6 +846,7 @@ fn new_v(args[]string) *V {
 		build_mode: build_mode
 		is_run: args.contains('run')
 		is_repl: args.contains('-repl')
+		vroot: lang_dir
 	}
 }
 
@@ -818,7 +873,7 @@ fn run_repl() []string {
 			os.write_file(file, source_code)
 			mut v := new_v( ['v', '-repl', file])
 			v.compile()
-			s := os.system(TmpPath + '/vrepl')
+			s := os.exec(TmpPath + '/vrepl')
 			println(s)
 		}
 		else {
@@ -831,20 +886,19 @@ fn run_repl() []string {
 // This definitely needs to be better :)
 const (
 	HelpText = '
-- To build a V program:
-v file.v
+Usage: v [options] [file | directory]
 
-- To get current V version:
-v version
-
-- To build an optimized executable:
-v -prod file.v
-
-- To specify the executable\'s name:
-v -o program file.v 
-
-- To build and execute a V program :
-v run file.v
+Options:
+  -                 Read from stdin (Default; Interactive mode if in a tty)
+  -h, --help, help  Display this information.
+  -v, version       Display compiler version.
+  -prod             Build an optimized executable.
+  -o <file>         Place output into <file>.
+  -obf              Obfuscate the resulting binary.
+  run               Build and execute a V program.
+                    You can add arguments after file name.
+Files:
+  <file>_test.v     Test file.
 '
 )
 
