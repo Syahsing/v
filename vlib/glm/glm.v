@@ -6,7 +6,7 @@ module glm
 
 import math
 
-/* 
+/*
 #flag -lmyglm
 # f32* myglm_ortho(f32, f32, f32, f32);
 # f32* myglm_translate(f32, f32, f32);
@@ -17,9 +17,9 @@ import math
 // # glm__Vec3 myglm_mult(glm__Vec3, glm__Vec3);
 // # glm__Vec3 myglm_cross(glm__Vec3, glm__Vec3);
 // # glm__Vec3 myglm_normalize(glm__Vec3);
-struct Mat4 {
+pub struct Mat4 {
 pub:
-	data *f32
+	data &f32
 }
 
 struct Vec2 {
@@ -42,22 +42,22 @@ pub fn vec3(x, y, z f32) Vec3 {
 	return res
 }
 
-fn mat4(f *f32) Mat4 {
+fn mat4(f &f32) Mat4 {
 	res := Mat4 {
 		data: f
 	}
 	return res
 }
 
-fn (v Vec3) str() string {
+pub fn (v Vec3) str() string {
 	return 'Vec3{ $v.x, $v.y, $v.z }'
 }
 
-fn (v Vec2) str() string {
+pub fn (v Vec2) str() string {
 	return 'Vec3{ $v.x, $v.y }'
 }
 
-fn (m Mat4) str() string {
+pub fn (m Mat4) str() string {
 	mut s := '[ '
 	for i := 0; i < 4; i++ {
 		if i != 0 {
@@ -117,11 +117,11 @@ fn (a Vec3) print() {
 	x := a.x
 	y := a.y
 	z := a.z
-	# printf("vec3{%f,%f,%f}\n",x,y,z);
+	C.printf('vec3{%f,%f,%f}\n',x,y,z)
 	// println('vec3{$x,$y,$z}')
 }
 
-/* 
+/*
 fn rotate(m Mat4, angle f32, vec Vec3) Mat4 {
 	// # t_mat4 m;
 	// println('rotate done')
@@ -130,7 +130,7 @@ fn rotate(m Mat4, angle f32, vec Vec3) Mat4 {
 }
 */
 
-fn f32_calloc(n int) *f32 {
+fn f32_calloc(n int) &f32 {
 	return *f32(calloc(n * sizeof(f32)))
 }
 // fn translate(vec Vec3) *f32 {
@@ -154,7 +154,7 @@ pub fn translate(m Mat4, v Vec3) Mat4 {
 	return mat4(out)
 }
 
-/* 
+/*
 fn normalize(vec Vec3) Vec3 {
 	# return myglm_normalize(vec);
 	return Vec3{}
@@ -162,16 +162,16 @@ fn normalize(vec Vec3) Vec3 {
 */
 // https://github.com/g-truc/glm/blob/0ceb2b755fb155d593854aefe3e45d416ce153a4/glm/ext/matrix_clip_space.inl
 pub fn ortho(left, right, bottom, top f32) Mat4 {
-	println('glm ortho($left, $right, $bottom, $top)')
+	//println('glm ortho($left, $right, $bottom, $top)')
 	// mat<4, 4, T, defaultp> Result(static_cast<T>(1));
 	n := 16
 	mut res := f32_calloc(n)
-	# res[0] = 2 / (right - left) ;
-	# res[5] = 2.0 / (top - bottom);
-	# res[10] =  (1);
-	# res[12] = - (right + left) / (right - left);
-	# res[13] = - (top + bottom) / (top - bottom);
-	res[15] = 1
+	res[0] = 2.0 / (right - left)
+	res[5] = 2.0 / (top - bottom)
+	res[10] = 1.0
+	res[12] = - (right + left) / (right - left)
+	res[13] = - (top + bottom) / (top - bottom)
+	res[15] = 1.0
 	return mat4(res)
 }
 
@@ -250,7 +250,7 @@ pub fn identity() Mat4 {
 }
 
 // returns *f32 without allocation
-pub fn identity2(res *f32) {
+pub fn identity2(res mut &f32) {
 	res[0] = 1
 	res[5] = 1
 	res[10] = 1
@@ -271,32 +271,32 @@ pub fn identity3() []f32 {
 }
 
 // https://github.com/toji/gl-matrix/blob/1549cf21dfa14a2bc845993485343d519cf064fe/src/gl-matrix/mat4.js
-fn ortho_js(left, right, bottom, top f32) *f32 {
-	mynear := 1
-	myfar := 1
+fn ortho_js(left, right, bottom, top f32) &f32 {
+//	mynear := 1
+//	myfar := 1
 	lr := 1.0 / (left - right)
 	bt := 1.0 / (bottom - top)
 	nf := 1.0 / 1.0// (mynear -myfar)
-	# f32* out = malloc (sizeof(f32) * 16);
-	# out[0] = -2 * lr;
-	# out[1] = 0;
-	# out[2] = 0;
-	# out[3] = 0;
-	# out[4] = 0;
-	# out[5] = -2 * bt;
-	# out[6] = 0;
-	# out[7] = 0;
-	# out[8] = 0;
-	# out[9] = 0;
-	# out[10] = 2 * nf;
-	# out[11] = 0;
-	# out[12] = (left + right) * lr;
-	# out[13] = (top + bottom) * bt;
-	# out[14] = 1 * nf;//(far + near) * nf;
-	# out[15] = 1;
-	# return out;
-	f := 0.0
-	return &f
+	mut out := (*f32)( malloc (sizeof(f32) * 16))
+	 out[0] = -2.0 * lr
+	 out[1] = 0
+	 out[2] = 0
+	 out[3] = 0
+	 out[4] = 0
+	 out[5] = -2.0 * bt
+	 out[6] = 0
+	 out[7] = 0
+	 out[8] = 0
+	 out[9] = 0
+	 out[10] = 2.0 * nf
+	 out[11] = 0
+	 out[12] = (left + right) * lr
+	 out[13] = (top + bottom) * bt
+	 out[14] = 1.0 * nf//(far + near) * nf;
+	 out[15] = 1
+	return out
+	//f := 0.0
+	//return &f
 }
 
 // fn ortho_old(a, b, c, d f32) *f32 {
@@ -307,7 +307,7 @@ fn cross(a, b Vec3) Vec3 {
 	return Vec3{}
 }
 
-/* 
+/*
 fn perspective(degrees f32, ratio f32, a, b f32) Mat4 {
 	// println('lang per degrees=$degrees ratio=$ratio a=$a b=$b')
 	// # printf("lang pers degrees=%f ratio=%f a=%f b=%f\n", degrees, ratio, a,b);
